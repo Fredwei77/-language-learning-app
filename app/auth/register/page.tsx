@@ -45,10 +45,14 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
+      // 获取当前域名
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: `${origin}/auth/callback?next=/`,
           data: {
             nickname: nickname || email.split("@")[0],
           },
