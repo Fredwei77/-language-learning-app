@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -8,6 +8,7 @@ import { Volume2, BookOpen, MessageCircle, Star, Lightbulb, Quote } from "lucide
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { useLocale } from "@/hooks/use-locale"
+import { speak, preloadVoices } from "@/lib/speech-utils"
 import { 
   cantonesePhrasesData, 
   cantoneseIdioms, 
@@ -19,6 +20,12 @@ export function CantoneseLearnEnhanced() {
   const { t, locale } = useLocale()
   const [activeTab, setActiveTab] = useState("phrases")
   const [selectedCategory, setSelectedCategory] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  // 预加载语音列表（Chrome 需要）
+  useEffect(() => {
+    preloadVoices()
+  }, [])
 
   // 使用导入的数据，根据语言选择显示
   const commonPhrases = cantonesePhrasesData.map(cat => ({
@@ -42,11 +49,17 @@ export function CantoneseLearnEnhanced() {
     { number: 6, name: t.cantonese.learn.tones.tone6, example: "事 (si6)", pitch: t.cantonese.learn.tones.lowFlat, color: "bg-indigo-500" },
   ]
 
-  const playCantonese = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = "zh-HK"
-    utterance.rate = 0.7
-    window.speechSynthesis.speak(utterance)
+  const playCantonese = async (text: string) => {
+    if (isPlaying) return
+    
+    try {
+      setIsPlaying(true)
+      await speak(text, { lang: "zh-HK", rate: 0.7 })
+    } catch (error) {
+      console.error("Speech error:", error)
+    } finally {
+      setIsPlaying(false)
+    }
   }
 
   return (
@@ -111,8 +124,13 @@ export function CantoneseLearnEnhanced() {
                               <div className="space-y-2 flex-1">
                                 <div className="flex items-center gap-3">
                                   <span className="text-3xl font-bold text-chart-4">{phrase.cantonese}</span>
-                                  <Button size="sm" variant="outline" onClick={() => playCantonese(phrase.cantonese)}>
-                                    <Volume2 className="h-4 w-4" />
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => playCantonese(phrase.cantonese)}
+                                    disabled={isPlaying}
+                                  >
+                                    <Volume2 className={`h-4 w-4 ${isPlaying ? 'animate-pulse' : ''}`} />
                                   </Button>
                                 </div>
                                 <code className="text-sm bg-muted px-3 py-1 rounded inline-block">
@@ -175,8 +193,9 @@ export function CantoneseLearnEnhanced() {
                           variant="outline"
                           className="w-full bg-transparent"
                           onClick={() => playCantonese(tone.example.split(" ")[0])}
+                          disabled={isPlaying}
                         >
-                          <Volume2 className="h-4 w-4 mr-2" />
+                          <Volume2 className={`h-4 w-4 mr-2 ${isPlaying ? 'animate-pulse' : ''}`} />
                           {t.cantonese.learn.tones.listen}
                         </Button>
                       </div>
@@ -256,8 +275,13 @@ export function CantoneseLearnEnhanced() {
                         <div className="space-y-2 flex-1">
                           <div className="flex items-center gap-3">
                             <span className="text-2xl font-bold text-primary">{idiom.cantonese}</span>
-                            <Button size="sm" variant="ghost" onClick={() => playCantonese(idiom.cantonese)}>
-                              <Volume2 className="h-4 w-4" />
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => playCantonese(idiom.cantonese)}
+                              disabled={isPlaying}
+                            >
+                              <Volume2 className={`h-4 w-4 ${isPlaying ? 'animate-pulse' : ''}`} />
                             </Button>
                           </div>
                           <code className="text-xs bg-muted px-2 py-1 rounded inline-block">

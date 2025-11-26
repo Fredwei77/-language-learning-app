@@ -12,6 +12,7 @@ import { CoinExplosion } from "@/components/coin-explosion"
 import { useLocale } from "@/hooks/use-locale"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { speak, preloadVoices } from "@/lib/speech-utils"
 import Link from "next/link"
 import {
   type PracticeItem,
@@ -196,12 +197,24 @@ export function PronunciationPracticeI18n() {
     }
   }
 
-  const playReference = () => {
-    if (!currentItem) return
-    const utterance = new SpeechSynthesisUtterance(currentItem.text)
-    utterance.lang = "en-US"
-    utterance.rate = 0.8
-    window.speechSynthesis.speak(utterance)
+  const [isPlayingReference, setIsPlayingReference] = useState(false)
+
+  // 预加载语音列表（Chrome 需要）
+  useEffect(() => {
+    preloadVoices()
+  }, [])
+
+  const playReference = async () => {
+    if (!currentItem || isPlayingReference) return
+    
+    try {
+      setIsPlayingReference(true)
+      await speak(currentItem.text, { lang: "en-US", rate: 0.8 })
+    } catch (error) {
+      console.error("Speech error:", error)
+    } finally {
+      setIsPlayingReference(false)
+    }
   }
 
   const nextItem = () => {
@@ -454,8 +467,13 @@ export function PronunciationPracticeI18n() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-lg">{t.pronunciation.readAloud}</h3>
-                    <Button variant="outline" size="sm" onClick={playReference}>
-                      <Volume2 className="h-4 w-4 mr-2" />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={playReference}
+                      disabled={isPlayingReference}
+                    >
+                      <Volume2 className={`h-4 w-4 mr-2 ${isPlayingReference ? 'animate-pulse' : ''}`} />
                       {t.pronunciation.listenDemo}
                     </Button>
                   </div>
