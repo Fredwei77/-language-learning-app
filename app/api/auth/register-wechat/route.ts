@@ -23,19 +23,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // 检查邮箱是否已注册
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single()
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: '该邮箱已被注册' },
-        { status: 400 }
-      )
-    }
+    // 检查邮箱是否已在 Supabase Auth 中注册
+    // 注意：我们不能直接查询 auth.users，所以跳过这个检查
+    // Supabase Auth 的 signUp 会自动处理重复邮箱的情况
 
     // 生成场景值
     const sceneId = generateSceneId()
