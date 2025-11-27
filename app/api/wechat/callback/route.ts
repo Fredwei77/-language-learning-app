@@ -227,13 +227,8 @@ async function handleRegistration(sceneId: string, openid: string) {
       })
       .eq('id', pending.id)
 
-    // 更新用户表的 wechat_openid
-    if (authData.user) {
-      await supabase
-        .from('users')
-        .update({ wechat_openid: openid })
-        .eq('id', authData.user.id)
-    }
+    // wechat_openid 已经通过 signUp 的 metadata 保存了
+    // Supabase Auth 会自动存储在 auth.users.raw_user_meta_data 中
 
     return {
       success: true,
