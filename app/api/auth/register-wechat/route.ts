@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createTempQRCode, generateSceneId } from '@/lib/wechat/api'
-import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,16 +40,13 @@ export async function POST(request: NextRequest) {
     // 生成场景值
     const sceneId = generateSceneId()
 
-    // 加密密码
-    const passwordHash = await bcrypt.hash(password, 10)
-
-    // 创建临时注册记录
+    // 创建临时注册记录（保存原始密码，因为 Supabase Auth 需要）
     const { error: insertError } = await supabase
       .from('pending_registrations')
       .insert({
         scene_id: sceneId,
         email,
-        password_hash: passwordHash,
+        password_hash: password, // 保存原始密码
         nickname: nickname || email.split('@')[0],
         status: 'pending',
       })

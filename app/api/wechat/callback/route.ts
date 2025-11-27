@@ -196,11 +196,12 @@ async function handleRegistration(sceneId: string, openid: string) {
       }
     }
 
-    // 创建用户账号
+    // 创建用户账号（使用原始密码）
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: pending.email,
-      password: pending.password_hash, // 注意：这里需要使用原始密码，不是 hash
+      password: pending.password_hash, // 这里存的是原始密码
       options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://good2study.netlify.app'}/auth/callback`,
         data: {
           nickname: pending.nickname,
           wechat_openid: openid,
