@@ -35,6 +35,13 @@ export default async function ProfilePage() {
     .order("check_in_date", { ascending: false })
     .limit(30)
 
+  const { data: redemptions } = await supabase
+    .from("gift_redemptions")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20)
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -55,7 +62,13 @@ export default async function ProfilePage() {
       </header>
 
       <main className="flex-1">
-        <ProfileContent user={user} profile={profile} recentProgress={recentProgress || []} checkIns={checkIns || []} />
+        <ProfileContent 
+          user={user} 
+          profile={profile} 
+          recentProgress={recentProgress || []} 
+          checkIns={checkIns || []}
+          redemptions={redemptions || []}
+        />
       </main>
     </div>
   )

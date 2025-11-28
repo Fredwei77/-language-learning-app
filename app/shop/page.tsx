@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { useLocale } from "@/hooks/use-locale"
 import type { Profile } from "@/lib/types"
+import { GiftRedeemDialog } from "@/components/gift-redeem-dialog"
 
 export default function ShopPage() {
   const { t, locale } = useLocale()
@@ -32,6 +33,8 @@ export default function ShopPage() {
   const [gifts, setGifts] = useState<Gift[]>([])
   const [loading, setLoading] = useState(true)
   const [redeemingId, setRedeemingId] = useState<string | null>(null)
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const { toast } = useToast()
   const supabase = createClient()
 
@@ -58,7 +61,7 @@ export default function ShopPage() {
     fetchData()
   }, [supabase])
 
-  const handleRedeem = async (gift: Gift) => {
+  const handleRedeemClick = (gift: Gift) => {
     if (!profile) {
       toast({ title: t.shop.pleaseLogin, variant: "destructive" })
       return
@@ -73,7 +76,14 @@ export default function ShopPage() {
       return
     }
 
-    setRedeemingId(gift.id)
+    setSelectedGift(gift)
+    setDialogOpen(true)
+  }
+
+  const handleConfirmRedeem = async (shippingInfo: { name: string; phone: string; address: string; notes?: string }) => {
+    if (!selectedGift || !profile) return
+
+    setRedeemingId(selectedGift.id)
 
     try {
       const {
@@ -81,34 +91,35 @@ export default function ShopPage() {
       } = await supabase.auth.getUser()
       if (!user) throw new Error("请先登录")
 
+      const giftName = locale === "zh" ? selectedGift.name_zh : selectedGift.name_en
+
       // Deduct coins
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ coins: profile.coins - gift.coins })
+        .update({ coins: profile.coins - selectedGift.coins })
         .eq("id", user.id)
 
       if (updateError) throw updateError
 
-      const giftName = locale === "zh" ? gift.name_zh : gift.name_en
-
-      // Record redemption
+      // Record redemption with shipping info
       await supabase.from("gift_redemptions").insert({
         user_id: user.id,
-        gift_id: gift.id,
+        gift_id: selectedGift.id,
         gift_name: giftName,
-        coins_spent: gift.coins,
+        coins_spent: selectedGift.coins,
         status: "pending",
+        shipping_address: shippingInfo,
       })
 
       // Record transaction
       await supabase.from("coin_transactions").insert({
         user_id: user.id,
-        amount: -gift.coins,
+        amount: -selectedGift.coins,
         type: "spend",
         description: `${t.shop.redeem}${giftName}`,
       })
 
-      setProfile({ ...profile, coins: profile.coins - gift.coins })
+      setProfile({ ...profile, coins: profile.coins - selectedGift.coins })
       toast({ title: t.common.success, description: `${t.shop.redeemed} ${giftName}` })
     } catch (error) {
       toast({
@@ -116,6 +127,7 @@ export default function ShopPage() {
         description: error instanceof Error ? error.message : t.errors.generic,
         variant: "destructive",
       })
+      throw error
     } finally {
       setRedeemingId(null)
     }
@@ -297,7 +309,7 @@ export default function ShopPage() {
                           </div>
                           <Button
                             className="w-full"
-                            onClick={() => handleRedeem(gift)}
+                            onClick={() => handleRedeemClick(gift)}
                             disabled={userCoins < gift.coins || gift.stock <= 0 || redeemingId === gift.id || !profile}
                           >
                             {redeemingId === gift.id ? (
@@ -322,6 +334,17 @@ export default function ShopPage() {
           </Tabs>
         </div>
       </main>
+
+      {/* Redeem Dialog */}
+      {selectedGift && (
+        <GiftRedeemDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          giftName={locale === "zh" ? selectedGift.name_zh : selectedGift.name_en}
+          giftCoins={selectedGift.coins}
+          onConfirm={handleConfirmRedeem}
+        />
+      )}
     </div>
   )
 }

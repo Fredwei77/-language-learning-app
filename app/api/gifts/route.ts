@@ -9,6 +9,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category")
     const showAll = searchParams.get("showAll") // 管理员查看所有商品
+    const search = searchParams.get("search") // 搜索关键词
+    const lowStock = searchParams.get("lowStock") // 低库存筛选
 
     const supabase = await createClient()
 
@@ -24,6 +26,16 @@ export async function GET(request: Request) {
 
     if (category && category !== "all") {
       query = query.eq("category", category)
+    }
+
+    // 搜索功能
+    if (search) {
+      query = query.or(`name_zh.ilike.%${search}%,name_en.ilike.%${search}%`)
+    }
+
+    // 低库存筛选
+    if (lowStock === "true") {
+      query = query.lte("stock", 10)
     }
 
     const { data, error } = await query

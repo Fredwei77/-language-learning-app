@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Plus, Edit, Trash2, Upload, X, Package, Zap, Award, ArrowLeft } from "lucide-react"
+import { Loader2, Plus, Edit, Trash2, Upload, X, Package, Zap, Award, ArrowLeft, Search, AlertTriangle, CheckCircle2, XCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -37,6 +38,10 @@ export default function AdminGiftsPage() {
   const [editingGift, setEditingGift] = useState<Gift | null>(null)
   const [uploading, setUploading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [showLowStock, setShowLowStock] = useState(false)
+  const [selectedGifts, setSelectedGifts] = useState<string[]>([])
+  const [stats, setStats] = useState<any>(null)
   const { toast } = useToast()
   const supabase = createClient()
 
@@ -55,7 +60,12 @@ export default function AdminGiftsPage() {
   useEffect(() => {
     checkAdmin()
     fetchGifts()
+    fetchStats()
   }, [])
+
+  useEffect(() => {
+    fetchGifts()
+  }, [searchQuery, showLowStock])
 
   const checkAdmin = async () => {
     const {
@@ -70,7 +80,11 @@ export default function AdminGiftsPage() {
 
   const fetchGifts = async () => {
     try {
-      const response = await fetch("/api/gifts?category=all&showAll=true")
+      let url = "/api/gifts?category=all&showAll=true"
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`
+      if (showLowStock) url += `&lowStock=true`
+      
+      const response = await fetch(url)
       const result = await response.json()
       if (result.data) {
         setGifts(result.data)
@@ -80,6 +94,18 @@ export default function AdminGiftsPage() {
     } catch (error) {
       console.error("Error fetching gifts:", error)
       setGifts([])
+    }
+  }
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch("/api/gifts/stats")
+      const result = await response.json()
+      if (result.data) {
+        setStats(result.data)
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error)
     }
   }
 
@@ -209,6 +235,48 @@ export default function AdminGiftsPage() {
     setImagePreview(null)
   }
 
+  const handleBatchAction = async (action: "activate" | "deactivate") => {
+    if (selectedGifts.length === 0) {
+      toast({ title: "请先选择商品", variant: "destructive" })
+      return
+    }
+
+    try {
+      const response = await fetch("/api/gifts/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedGifts, action })
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        toast({ title: result.message })
+        setSelectedGifts([])
+        fetchGifts()
+        fetchStats()
+      } else {
+        toast({ title: "操作失败", description: result.error, variant: "destructive" })
+      }
+    } catch (error) {
+      toast({ title: "操作失败", variant: "destructive" })
+    }
+  }
+
+  const toggleGiftSelection = (id: string) => {
+    setSelectedGifts(prev => 
+      prev.includes(id) ? prev.filter(gid => gid !== id) : [...prev, id]
+    )
+  }
+
+  const toggleAllSelection = () => {
+    if (selectedGifts.length === gifts.length) {
+      setSelectedGifts([])
+    } else {
+      setSelectedGifts(gifts.map(g => g.id))
+    }
+  }
+
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case "physical":
@@ -261,9 +329,98 @@ export default function AdminGiftsPage() {
       </header>
 
       <main className="container mx-auto py-8 px-4">
+        {/* 统计面板 */}
+        {stats && (
+          <div className="grid gap-4 md:grid-cols-4 mb-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">商品总数</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalGifts}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">激活商品</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{stats.activeGifts}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">低库存预警</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">{stats.lowStockGifts}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">已选择</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{selectedGifts.length}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 搜索和筛选 */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="搜索商品名称..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={showLowStock ? "default" : "outline"}
+                  onClick={() => setShowLowStock(!showLowStock)}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  低库存
+                </Button>
+                {selectedGifts.length > 0 && (
+                  <>
+                    <Button variant="outline" onClick={() => handleBatchAction("activate")}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      批量上架
+                    </Button>
+                    <Button variant="outline" onClick={() => handleBatchAction("deactivate")}>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      批量下架
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 批量选择 */}
+        {gifts.length > 0 && (
+          <div className="mb-4 flex items-center gap-2">
+            <Checkbox
+              checked={selectedGifts.length === gifts.length}
+              onCheckedChange={toggleAllSelection}
+            />
+            <span className="text-sm text-muted-foreground">
+              全选 ({selectedGifts.length}/{gifts.length})
+            </span>
+          </div>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {gifts.map((gift) => (
-            <Card key={gift.id}>
+            <Card key={gift.id} className={selectedGifts.includes(gift.id) ? "ring-2 ring-primary" : ""}>
               <div
                 className={`relative h-48 flex items-center justify-center ${
                   gift.category === "physical"
@@ -278,9 +435,22 @@ export default function AdminGiftsPage() {
                 ) : (
                   <div className="text-white">{getCategoryIcon(gift.category)}</div>
                 )}
+                <div className="absolute top-3 left-3">
+                  <Checkbox
+                    checked={selectedGifts.includes(gift.id)}
+                    onCheckedChange={() => toggleGiftSelection(gift.id)}
+                    className="bg-white"
+                  />
+                </div>
                 <Badge className="absolute top-3 right-3" variant={gift.is_active ? "default" : "secondary"}>
                   {gift.is_active ? "激活" : "停用"}
                 </Badge>
+                {gift.stock <= 10 && (
+                  <Badge className="absolute bottom-3 right-3" variant="destructive">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    低库存
+                  </Badge>
+                )}
               </div>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -293,7 +463,9 @@ export default function AdminGiftsPage() {
                 <p className="text-sm text-muted-foreground line-clamp-2">{gift.description_zh}</p>
                 <div className="flex items-center justify-between">
                   <span className="text-lg font-bold text-orange-600">{gift.coins} 金币</span>
-                  <span className="text-sm text-muted-foreground">库存: {gift.stock}</span>
+                  <span className={`text-sm font-medium ${gift.stock <= 10 ? "text-red-600" : "text-muted-foreground"}`}>
+                    库存: {gift.stock}
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(gift)}>

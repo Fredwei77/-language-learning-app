@@ -9,18 +9,37 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Coins, Flame, Clock, Calendar, Edit, Save, X, CheckCircle, Loader2 } from "lucide-react"
+import { Coins, Flame, Clock, Calendar, Edit, Save, X, CheckCircle, Loader2, Package, MapPin, Phone, User as UserIcon } from "lucide-react"
 import type { Profile, LearningProgress, CheckIn } from "@/lib/types"
 import type { User } from "@supabase/supabase-js"
+import { useLocale } from "@/hooks/use-locale"
+import Link from "next/link"
+
+interface GiftRedemption {
+  id: string
+  gift_id: string
+  gift_name: string
+  coins_spent: number
+  status: string
+  shipping_address: {
+    name: string
+    phone: string
+    address: string
+    notes?: string
+  } | null
+  created_at: string
+}
 
 interface ProfileContentProps {
   user: User
   profile: Profile | null
   recentProgress: LearningProgress[]
   checkIns: CheckIn[]
+  redemptions: GiftRedemption[]
 }
 
-export function ProfileContent({ user, profile, recentProgress, checkIns }: ProfileContentProps) {
+export function ProfileContent({ user, profile, recentProgress, checkIns, redemptions }: ProfileContentProps) {
+  const { t } = useLocale()
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState(profile?.display_name || "")
   const [saving, setSaving] = useState(false)
@@ -28,6 +47,29 @@ export function ProfileContent({ user, profile, recentProgress, checkIns }: Prof
   const [currentProfile, setCurrentProfile] = useState(profile)
   const { toast } = useToast()
   const supabase = createClient()
+  
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "default"
+      case "processing":
+        return "secondary"
+      case "cancelled":
+        return "destructive"
+      default:
+        return "outline"
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    const statusMap: Record<string, string> = {
+      pending: t.shop.orderStatus?.pending || "待处理",
+      processing: t.shop.orderStatus?.processing || "处理中",
+      completed: t.shop.orderStatus?.completed || "已完成",
+      cancelled: t.shop.orderStatus?.cancelled || "已取消",
+    }
+    return statusMap[status] || status
+  }
 
   const handleSaveProfile = async () => {
     setSaving(true)
@@ -247,7 +289,7 @@ export function ProfileContent({ user, profile, recentProgress, checkIns }: Prof
         {/* Recent Activity */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">最近学习</CardTitle>
+            <CardTitle className="text-lg">{t.profile.recentActivity}</CardTitle>
           </CardHeader>
           <CardContent>
             {recentProgress.length === 0 ? (
@@ -273,7 +315,7 @@ export function ProfileContent({ user, profile, recentProgress, checkIns }: Prof
         {/* Check-in History */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">签到记录</CardTitle>
+            <CardTitle className="text-lg">{t.profile.checkInHistory}</CardTitle>
           </CardHeader>
           <CardContent>
             {checkIns.length === 0 ? (
@@ -297,6 +339,82 @@ export function ProfileContent({ user, profile, recentProgress, checkIns }: Prof
           </CardContent>
         </Card>
       </div>
+
+      {/* My Redemptions */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{t.profile.myRedemptions}</CardTitle>
+            <Link href="/shop">
+              <Button variant="outline" size="sm">
+                <Package className="h-4 w-4 mr-2" />
+                {t.shop.title}
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {redemptions.length === 0 ? (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground mb-2">{t.profile.noRedemptions}</p>
+              <Link href="/shop">
+                <Button variant="link">{t.profile.startRedeeming}</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {redemptions.map((redemption) => (
+                <Card key={redemption.id} className="border-2">
+                  <CardContent className="pt-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold">{redemption.gift_name}</h4>
+                          <Badge variant={getStatusBadgeVariant(redemption.status)}>
+                            {getStatusText(redemption.status)}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(redemption.created_at).toLocaleString("zh-CN")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 text-orange-600 font-semibold">
+                        <Coins className="h-4 w-4" />
+                        <span>{redemption.coins_spent}</span>
+                      </div>
+                    </div>
+                    {redemption.shipping_address && (
+                      <div className="space-y-2 text-sm bg-muted/50 p-3 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <UserIcon className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                          <div>
+                            <span className="text-muted-foreground">{t.profile.recipient}: </span>
+                            <span className="font-medium">{redemption.shipping_address.name}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                          <span>{redemption.shipping_address.phone}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                          <span>{redemption.shipping_address.address}</span>
+                        </div>
+                        {redemption.shipping_address.notes && (
+                          <div className="text-muted-foreground pt-1 border-t">
+                            备注: {redemption.shipping_address.notes}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
