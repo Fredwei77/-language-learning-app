@@ -38,6 +38,13 @@ export function FeaturesGrid() {
       color: "text-purple-500",
     },
     {
+      icon: Volume2,
+      title: t.nav.shanghainese,
+      description: t.home.features.shanghainese,
+      href: "/shanghainese",
+      color: "text-orange-500",
+    },
+    {
       icon: Mic,
       title: t.nav.pronunciation,
       description: t.pronunciation.subtitle,
